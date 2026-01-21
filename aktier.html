@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Min Aktie Animation</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        #graph { width: 100%; height: 500px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📈 MSFT vs MSTR: Udviklingen</h1>
+    <p style="text-align: center;">Tryk på "Play" for at se hvordan de fulgtes ad og knækkede i 2018</p>
+    <div id="graph"></div>
+</div>
+
+<script>
+// Her "simulerer" vi dataene for MSFT og MSTR, så filen virker med det samme
+// I en rigtig web-app ville vi hente dem live.
+const dates = [];
+const msft_prices = [];
+const mstr_prices = [];
+
+// Vi laver lidt data der starter i 2015
+let msft = 100;
+let mstr = 100;
+
+for(let i = 0; i < 100; i++) {
+    let date = 2015 + (i/10);
+    dates.push(date);
+    
+    // De følges ad i starten
+    if (date < 2018) {
+        msft += Math.random() * 5;
+        mstr += Math.random() * 5;
+    } else {
+        // Efter 2018 stikker de af i hver sin retning
+        msft += Math.random() * 8;
+        mstr += Math.random() * 25; // MSTR stiger vildere her
+    }
+    msft_prices.push(msft);
+    mstr_prices.push(mstr);
+}
+
+// Opsætning af den interaktive graf
+const data = [
+    { x: [dates[0]], y: [msft_prices[0]], name: 'MSFT', mode: 'lines', line: {color: '#00a4ef'} },
+    { x: [dates[0]], y: [mstr_prices[0]], name: 'MSTR', mode: 'lines', line: {color: '#ffb900'} }
+];
+
+const layout = {
+    xaxis: { range: [2015, 2025], title: 'År' },
+    yaxis: { range: [0, 1500], title: 'Pris (Indekseret)' },
+    updatemenus: [{
+        type: 'buttons',
+        buttons: [{ label: 'Play', method: 'animate', args: [null, { frame: { duration: 50 } }] }]
+    }]
+};
+
+const frames = dates.map((d, i) => ({
+    data: [
+        { x: dates.slice(0, i), y: msft_prices.slice(0, i) },
+        { x: dates.slice(0, i), y: mstr_prices.slice(0, i) }
+    ]
+}));
+
+Plotly.newPlot('graph', data, layout).then(function() {
+    Plotly.addFrames('graph', frames);
+});
+</script>
+
+</body>
+</html>
