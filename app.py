@@ -2,23 +2,28 @@ import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import pandas as pd
 
 # Konfiguration
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
 
-# Apple Design System
+# Apple Design System - Opstrammet UI
 st.markdown("""
     <style>
         .stApp { background-color: #fbfbfd; }
-        .block-container {padding-top: 1.5rem; padding-bottom: 1rem; max-width: 1000px;}
-        h1 { font-family: -apple-system, sans-serif; color: #1d1d1f; font-weight: 600; text-align: center; }
+        .block-container {padding-top: 1rem; padding-bottom: 1rem; max-width: 1100px;}
+        h1 { font-family: -apple-system, sans-serif; color: #1d1d1f; font-weight: 600; text-align: center; margin-bottom: 0.5rem;}
+        
+        /* Knapper og Input */
         .stButton>button {
-            border-radius: 12px; background-color: #f5f5f7;
-            color: #1d1d1f; border: none; font-weight: 500; font-size: 0.8rem;
+            border-radius: 10px; background-color: #f5f5f7;
+            color: #1d1d1f; border: 1px solid #d2d2d7; font-weight: 500; font-size: 0.85rem;
+            transition: all 0.2s;
         }
-        .stButton>button:hover { background-color: #e8e8ed; color: #0071e3; }
-        .stTextInput>div>div>input { border-radius: 12px; border: 1px solid #d2d2d7; text-align: center; height: 3.5rem;}
-        .popular-label { font-size: 0.8rem; color: #86868b; margin-bottom: 5px; text-align: center; }
+        .stButton>button:hover { background-color: #e8e8ed; color: #0071e3; border-color: #0071e3; }
+        .stTextInput>div>div>input { border-radius: 12px; border: 1px solid #d2d2d7; height: 3rem; font-size: 1rem;}
+        
+        .section-label { font-size: 0.85rem; color: #86868b; margin: 10px 0 5px 0; font-weight: 500; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -30,74 +35,95 @@ if 'tickers_val' not in st.session_state:
 if 'years_val' not in st.session_state:
     st.session_state.years_val = 10
 
-# Top 20 mest populære tickers
-popular_tickers = ["NVDA", "TSLA", "AAPL", "AMZN", "META", "MSFT", "GOOGL", "NFLX", "AMD", "MSTR", "HOOD", "COIN", "PLTR", "BABA", "MARA", "RIOT", "INTC", "PYPL", "DIS", "JPM"]
+# Top 20 mest populære
+popular_tickers = ["NVDA", "TSLA", "AAPL", "AMZN", "META", "MSFT", "GOOGL", "NFLX", "AMD", "MSTR", 
+                   "HOOD", "COIN", "PLTR", "BABA", "MARA", "RIOT", "INTC", "PYPL", "DIS", "JPM"]
 
-# --- DATA FUNKTION ---
+# --- FEJLSIKRET DATA FUNKTION ---
 @st.cache_data(show_spinner=False)
 def get_clean_data(tickers_str, years_val):
-    ticker_list = [t.strip().upper() for t in tickers_str.split(",")]
-    start = "1900-01-01" if years_val == "IPO" else (datetime.now() - timedelta(days=int(years_val)*365)).strftime('%Y-%m-%d')
     try:
-        # Tager kun de nødvendige kolonner for at optimere hastighed
-        df = yf.download(ticker_list, start=start)['Close'].dropna()
+        ticker_list = list(set([t.strip().upper() for t in tickers_str.split(",") if t.strip()]))
+        if not ticker_list: return None
+        
+        start = "1900-01-01" if years_val == "IPO" else (datetime.now() - timedelta(days=int(years_val)*365)).strftime('%Y-%m-%d')
+        
+        # Hent data
+        raw_data = yf.download(ticker_list, start=start)['Close']
+        
+        # Håndtering af både enkelte og flere tickers (pandas formatering)
+        if isinstance(raw_data, pd.Series):
+            df = raw_data.to_frame()
+            df.columns = [ticker_list[0]]
+        else:
+            df = raw_data
+            
+        df = df.dropna()
         if df.empty: return None
+        
+        # Normalisering
         return (df / df.iloc[0]) * 100
-    except: return None
+    except Exception as e:
+        return None
 
 data = get_clean_data(st.session_state.tickers_val, st.session_state.years_val)
 
 # --- GRAF ---
 if data is not None:
-    apple_colors = ['#0071e3', '#86868b', '#1d1d1f', '#ff3b30', '#34c759', '#af52de', '#ff9500']
-    step = max(1, len(data) // 200)
-    x_range = [data.index.min(), data.index.max()]
-    y_range = [0, data.max().max() * 1.1]
-
+    apple_colors = ['#0071e3', '#ff3b30', '#34c759', '#af52de', '#ff9500', '#5856d6', '#86868b']
+    step = max(1, len(data) // 150)
+    
     fig = go.Figure(
         data=[go.Scatter(x=[data.index[0]], y=[data[c].iloc[0]], name=c, 
                          line=dict(width=2.5, color=apple_colors[i % len(apple_colors)])) 
               for i, c in enumerate(data.columns)],
         layout=go.Layout(
-            xaxis=dict(range=x_range, showgrid=False, color="#86868b", fixedrange=True),
-            yaxis=dict(range=y_range, showgrid=True, gridcolor='#f5f5f7', color="#86868b", fixedrange=True),
+            xaxis=dict(range=[data.index.min(), data.index.max()], showgrid=False, fixedrange=True),
+            yaxis=dict(range=[0, data.max().max() * 1.1], showgrid=True, gridcolor='#f5f5f7', fixedrange=True),
             height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(t=10, b=80, l=40, r=40), hovermode="x unified",
             updatemenus=[{
                 "type": "buttons", "x": 0.5, "y": -0.2, "xanchor": "center", "yanchor": "top",
                 "buttons": [
-                    {"label": "▶ Spil", "method": "animate", "args": [None, {"frame": {"duration": 50, "redraw": False}, "fromcurrent": True}]},
+                    {"label": "▶ Spil", "method": "animate", "args": [None, {"frame": {"duration": 40, "redraw": False}, "fromcurrent": True}]},
                     {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]}
                 ]
             }]
         ),
-        frames=[go.Frame(data=[go.Scatter(x=data.index[:i], y=data[c].iloc[:i]) for i in data.columns]) 
+        frames=[go.Frame(data=[go.Scatter(x=data.index[:i], y=data[c].iloc[:i]) for c in data.columns]) 
                 for i in range(1, len(data), step)]
     )
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+else:
+    st.info("Indtast tickers nedenfor for at generere grafen.")
 
 # --- KONTROLPANEL ---
-st.markdown("<div class='popular-label'>Søg på navn (f.eks. 'Apple') eller ticker (f.eks. 'AAPL')</div>", unsafe_allow_html=True)
-search_input = st.text_input("Søg", placeholder="Indtast navne eller tickers adskilt af komma...", label_visibility="collapsed")
+st.markdown("---")
+st.markdown("<div class='section-label'>SØG (Udfyld navne eller tickers adskilt af komma)</div>", unsafe_allow_html=True)
+search_input = st.text_input("Søg", placeholder="F.eks: AAPL, Robinhood, NVDA...", label_visibility="collapsed")
 
-if search_input:
-    # Hvis brugeren skriver noget, opdaterer vi listen
+if search_input and search_input != st.session_state.tickers_val:
     st.session_state.tickers_val = search_input
     st.rerun()
 
-# Vis "Most Popular" knapper
-st.markdown("<div class='popular-label'>Populære lige nu:</div>", unsafe_allow_html=True)
-pop_cols = st.columns(10) # 2 rækker af 10
+st.markdown("<div class='section-label'>POPULÆRE LIGE NU</div>", unsafe_allow_html=True)
+# Laver 2 rækker med 10 knapper hver
+row1 = st.columns(10)
+row2 = st.columns(10)
+
 for i, ticker in enumerate(popular_tickers):
-    if pop_cols[i % 10].button(ticker, key=ticker):
-        if ticker not in st.session_state.tickers_val:
-            st.session_state.tickers_val += f", {ticker}"
+    col = row1[i] if i < 10 else row2[i-10]
+    if col.button(ticker, key=f"pop_{ticker}"):
+        current = [t.strip().upper() for t in st.session_state.tickers_val.split(",") if t.strip()]
+        if ticker not in current:
+            current.append(ticker)
+            st.session_state.tickers_val = ", ".join(current)
             st.rerun()
 
-st.markdown("---")
+st.markdown("<div class='section-label'>TIDSHORISONT</div>", unsafe_allow_html=True)
 t_cols = st.columns(5)
 vals, labels = [1, 5, 10, 20, "IPO"], ["1 år", "5 år", "10 år", "20 år", "IPO"]
 for i, col in enumerate(t_cols):
-    if col.button(labels[i]):
+    if col.button(labels[i], key=f"time_{labels[i]}"):
         st.session_state.years_val = vals[i]
         st.rerun()
