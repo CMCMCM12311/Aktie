@@ -1,55 +1,31 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
-import pandas as pd
+import plotly.express as px
+import time
 
-# Sæt siden op
-st.set_page_config(page_title="Min Aktie-Tracker", layout="wide")
+# Gør siden bred og mørk
+st.set_page_config(page_title="Aktie-Expert", layout="wide", initial_sidebar_state="expanded")
 
-st.title("📈 Aktie-Sammenligning")
-st.markdown("Indtast tickers (f.eks. **MSFT, MSTR**) og se hvordan de har fulgt hinanden!")
+st.title("🚀 Aktie-Rejsen: MSFT vs MSTR")
 
-# Sidebar til valgmuligheder
+# Sidebar med lidt mere info
 with st.sidebar:
-    st.header("Indstillinger")
-    tickers_input = st.text_input("Tickers (adskilt af komma)", "MSFT, MSTR")
-    start_date = st.date_input("Start dato", pd.to_datetime("2015-01-01"))
-    normalize = st.checkbox("Normalisér (start begge på kurs 100)", value=True)
+    st.header("Konfiguration")
+    tickers = st.text_input("Vælg Tickers", "MSFT, MSTR")
+    speed = st.slider("Animationshastighed", 0.01, 0.2, 0.05)
+    
+st.info("I 2018 begyndte dynamikken at ændre sig. Prøv at trykke Play og hold øje med de to linjer!")
 
-# Hent data
-tickers = [t.strip().upper() for t in tickers_input.split(",")]
-if tickers:
-    with st.spinner('Henter data fra Yahoo Finance...'):
-        data = yf.download(tickers, start=start_date)['Close']
-
-    if not data.empty:
-        # Hvis der kun er én ticker, laver yfinance en Series, vi vil have en DataFrame
-        if len(tickers) == 1:
-            data = data.to_frame()
-
-        # Beregn normalisering hvis valgt
-        if normalize:
-            plot_data = (data / data.iloc[0]) * 100
-            y_label = "Indekseret Værdi (Start = 100)"
-        else:
-            plot_data = data
-            y_label = "Pris i USD"
-
-        # Lav den interaktive graf
-        fig = go.Figure()
-        for col in plot_data.columns:
-            fig.add_trace(go.Scatter(x=plot_data.index, y=plot_data[col], name=col))
-
-        fig.update_layout(
-            hovermode="x unified",
-            xaxis_title="År",
-            yaxis_title=y_label,
-            template="plotly_dark", # Ser lidt mere 'fintech' ud
-            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.success("Brug musen til at markere et område (f.eks. omkring 2018) for at zoome ind på detaljerne!")
-    else:
-        st.error("Ingen data fundet. Tjek om dine tickers er rigtige.")
+if st.button('Kør Animation'):
+    t_list = [t.strip().upper() for t in tickers.split(",")]
+    data = yf.download(t_list, start="2015-01-01")['Close']
+    data = (data / data.iloc[0]) * 100 # Normalisering
+    
+    placeholder = st.empty()
+    
+    for i in range(5, len(data), 10):
+        curr = data.iloc[:i].reset_index().melt(id_vars='Date')
+        fig = px.line(curr, x='Date', y='value', color='Ticker', template="plotly_dark")
+        fig.update_layout(yaxis_title="Vækst i % (Start = 100)")
+        placeholder.plotly_chart(fig, use_container_width=True)
+        time.sleep(speed)
