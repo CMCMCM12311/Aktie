@@ -3,18 +3,16 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# Konfiguration
+# Konfiguration for at undgå scroll
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS til layout og knapper
+# CSS til at fjerne marginer og optimere layout
 st.markdown("""
     <style>
         .block-container {padding-top: 1rem; padding-bottom: 0rem;}
         h1 {margin-top: -1rem; margin-bottom: 0.5rem; font-size: 1.8rem !important; text-align: center;}
-        hr {margin-top: 0.5rem; margin-bottom: 0.5rem;}
-        /* Styling af den store afspilningsknap */
-        .stButton>button {width: 100%; border-radius: 5px; height: 3.5rem; font-weight: bold; font-size: 1.1rem;}
-        .play-btn>div>button {background-color: #0083B8 !important; color: white !important; border: none;}
+        hr {margin-top: 0.2rem; margin-bottom: 0.2rem;}
+        .stButton>button {width: 100%; border-radius: 5px; height: 2.5rem; background-color: #262730;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -52,19 +50,28 @@ if data is not None:
         layout=go.Layout(
             xaxis=dict(range=[data.index.min(), data.index.max()], showgrid=False),
             yaxis=dict(title="Vækst (Start = 100)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-            height=450,
-            margin=dict(t=10, b=10, l=10, r=10),
+            height=500,
+            margin=dict(t=10, b=80, l=10, r=10), # Vi giver plads i bunden til knappen
             template="plotly_dark",
             hovermode="x unified",
             updatemenus=[{
                 "type": "buttons",
                 "showactive": False,
-                "visible": False, # Vi skjuler den tekniske knap i grafen
-                "buttons": [{
-                    "label": "Play",
-                    "method": "animate",
-                    "args": [None, {"frame": {"duration": 20, "redraw": True}, "fromcurrent": True}]
-                }]
+                "x": 0.5, "y": -0.15, # PLACERET MIDT I BUNDEN AF GRAFEN
+                "xanchor": "center", "yanchor": "top",
+                "direction": "left",
+                "buttons": [
+                    {
+                        "label": "▶ AFSPIL ANIMATION",
+                        "method": "animate",
+                        "args": [None, {"frame": {"duration": 20, "redraw": True}, "fromcurrent": True}]
+                    },
+                    {
+                        "label": "⏸ PAUSE",
+                        "method": "animate",
+                        "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]
+                    }
+                ]
             }]
         ),
         frames=[go.Frame(data=[go.Scatter(x=data.index[:i], y=data[c].iloc[:i]) for c in data.columns]) 
@@ -76,32 +83,13 @@ else:
     st.error("Kunne ikke hente data. Tjek tickers.")
 
 # --- KONTROLPANEL (NEDENUNDER) ---
-st.write("---")
-
-# Række 1: Tickers og Play
-col_input, col_play = st.columns([2, 2])
-
+col_input, _ = st.columns([1, 1])
 with col_input:
-    new_t = st.text_input("Indtast tickers (tryk Enter for at opdatere)", value=st.session_state.tickers_val)
+    new_t = st.text_input("Tickers (Tryk Enter)", value=st.session_state.tickers_val, label_visibility="collapsed")
     if new_t != st.session_state.tickers_val:
         st.session_state.tickers_val = new_t
         st.rerun()
 
-with col_play:
-    st.markdown('<div class="play-btn">', unsafe_allow_html=True)
-    if st.button("▶ KLIK HER FOR AT AFSPILLE"):
-        # JavaScript der trykker på den skjulte knap i grafen
-        st.components.v1.html(
-            """
-            <script>
-            var btn = window.parent.document.querySelector('rect.updatemenu-button-rect');
-            if (btn) { btn.dispatchEvent(new MouseEvent('click', {bubbles: true})); }
-            </script>
-            """, height=0
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Række 2: Tids-knapper
 t_cols = st.columns(5)
 labels = ["1 år", "5 år", "10 år", "20 år", "IPO"]
 vals = [1, 5, 10, 20, "IPO"]
@@ -110,5 +98,3 @@ for i, col in enumerate(t_cols):
     if col.button(labels[i]):
         st.session_state.years_val = vals[i]
         st.rerun()
-
-st.caption(f"Status: {st.session_state.tickers_val} | Startdato: {start_date}")
