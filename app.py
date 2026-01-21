@@ -1,31 +1,29 @@
 import streamlit as st
 import yfinance as yf
-import plotly.express as px
-import time
+import plotly.graph_objects as go
 
-# Gør siden bred og mørk
-st.set_page_config(page_title="Aktie-Expert", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Hurtig Aktie-App", layout="wide")
 
-st.title("🚀 Aktie-Rejsen: MSFT vs MSTR")
+st.title("⚡ Optimeret Aktie-Animation")
 
-# Sidebar med lidt mere info
-with st.sidebar:
-    st.header("Konfiguration")
-    tickers = st.text_input("Vælg Tickers", "MSFT, MSTR")
-    speed = st.slider("Animationshastighed", 0.01, 0.2, 0.05)
-    
-st.info("I 2018 begyndte dynamikken at ændre sig. Prøv at trykke Play og hold øje med de to linjer!")
+tickers = st.sidebar.text_input("Tickers", "MSFT, MSTR")
+start_year = st.sidebar.slider("Start år", 2010, 2024, 2015)
 
-if st.button('Kør Animation'):
+if st.button('Hent og vis graf 📈'):
     t_list = [t.strip().upper() for t in tickers.split(",")]
-    data = yf.download(t_list, start="2015-01-01")['Close']
-    data = (data / data.iloc[0]) * 100 # Normalisering
-    
-    placeholder = st.empty()
-    
-    for i in range(5, len(data), 10):
-        curr = data.iloc[:i].reset_index().melt(id_vars='Date')
-        fig = px.line(curr, x='Date', y='value', color='Ticker', template="plotly_dark")
-        fig.update_layout(yaxis_title="Vækst i % (Start = 100)")
-        placeholder.plotly_chart(fig, use_container_width=True)
-        time.sleep(speed)
+    data = yf.download(t_list, start=f"{start_year}-01-01")['Close']
+    data = (data / data.iloc[0]) * 100 
+
+    # Vi laver én hurtig graf i stedet for en hakkende animation
+    fig = go.Figure()
+    for col in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data[col], name=col, mode='lines'))
+
+    fig.update_layout(
+        template="plotly_dark",
+        hovermode="x unified",
+        xaxis=dict(rangeslider=dict(visible=True)) # Her får du en tids-slider i bunden!
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("Brug slideren i bunden af grafen til at 'spole' gennem tiden. Det lagger ikke!")
