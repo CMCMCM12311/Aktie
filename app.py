@@ -6,15 +6,15 @@ from datetime import datetime, timedelta
 # Konfiguration
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS til layout
+# CSS til layout og knapper
 st.markdown("""
     <style>
         .block-container {padding-top: 1rem; padding-bottom: 0rem;}
         h1 {margin-top: -1rem; margin-bottom: 0.5rem; font-size: 1.8rem !important; text-align: center;}
         hr {margin-top: 0.5rem; margin-bottom: 0.5rem;}
-        .stButton>button {width: 100%; border-radius: 5px; height: 3rem; background-color: #262730; color: white; font-weight: bold;}
-        /* Fremhæv afspil-knappen */
-        .main-btn>div>button {background-color: #ff4b4b !important; color: white !important;}
+        /* Styling af den store afspilningsknap */
+        .stButton>button {width: 100%; border-radius: 5px; height: 3.5rem; font-weight: bold; font-size: 1.1rem;}
+        .play-btn>div>button {background-color: #0083B8 !important; color: white !important; border: none;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -59,10 +59,9 @@ if data is not None:
             updatemenus=[{
                 "type": "buttons",
                 "showactive": False,
-                "visible": True,
-                "x": 0.01, "y": 1.12,
+                "visible": False, # Vi skjuler den tekniske knap i grafen
                 "buttons": [{
-                    "label": "▶ KLIK HER FOR AT AFSPILLE",
+                    "label": "Play",
                     "method": "animate",
                     "args": [None, {"frame": {"duration": 20, "redraw": True}, "fromcurrent": True}]
                 }]
@@ -73,37 +72,36 @@ if data is not None:
     )
     
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    
-    # Auto-play script (forsøger at klikke på knappen automatisk)
-    st.components.v1.html(
-        """
-        <script>
-        function clickPlay() {
-            var btn = window.parent.document.querySelector('rect.updatemenu-button-rect');
-            if (btn) { btn.dispatchEvent(new MouseEvent('click', {bubbles: true})); }
-            else { setTimeout(clickPlay, 300); }
-        }
-        setTimeout(clickPlay, 500);
-        </script>
-        """, height=0
-    )
+else:
+    st.error("Kunne ikke hente data. Tjek tickers.")
 
 # --- KONTROLPANEL (NEDENUNDER) ---
 st.write("---")
-col_input, col_play = st.columns([3, 1])
+
+# Række 1: Tickers og Play
+col_input, col_play = st.columns([2, 2])
 
 with col_input:
-    new_t = st.text_input("Tickers", value=st.session_state.tickers_val, label_visibility="collapsed")
-
-with col_play:
-    # Den nye knap der erstatter "Compare"
-    st.markdown('<div class="main-btn">', unsafe_allow_html=True)
-    if st.button("Opdater & Afspil 🚀"):
+    new_t = st.text_input("Indtast tickers (tryk Enter for at opdatere)", value=st.session_state.tickers_val)
+    if new_t != st.session_state.tickers_val:
         st.session_state.tickers_val = new_t
         st.rerun()
+
+with col_play:
+    st.markdown('<div class="play-btn">', unsafe_allow_html=True)
+    if st.button("▶ KLIK HER FOR AT AFSPILLE"):
+        # JavaScript der trykker på den skjulte knap i grafen
+        st.components.v1.html(
+            """
+            <script>
+            var btn = window.parent.document.querySelector('rect.updatemenu-button-rect');
+            if (btn) { btn.dispatchEvent(new MouseEvent('click', {bubbles: true})); }
+            </script>
+            """, height=0
+        )
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Tids-knapper
+# Række 2: Tids-knapper
 t_cols = st.columns(5)
 labels = ["1 år", "5 år", "10 år", "20 år", "IPO"]
 vals = [1, 5, 10, 20, "IPO"]
@@ -112,3 +110,5 @@ for i, col in enumerate(t_cols):
     if col.button(labels[i]):
         st.session_state.years_val = vals[i]
         st.rerun()
+
+st.caption(f"Status: {st.session_state.tickers_val} | Startdato: {start_date}")
