@@ -3,62 +3,78 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Aktie-Animator Pro", layout="wide")
+# Konfiguration til bred visning uden sidebar
+st.set_page_config(page_title="Aktie-Animator Pro", layout="wide", initial_sidebar_state="collapsed")
 
 st.title("🎬 Aktie-Animator")
 
-# Sidebar til tickers
-with st.sidebar:
-    st.header("Indstillinger")
-    tickers_input = st.text_input("Tickers", "MSFT, MSTR")
-    
-    st.write("Vælg tidsperiode for animation:")
-    col1, col2, col3 = st.columns(3)
-    years = 0
-    if col1.button("1 år"): years = 1
-    if col2.button("5 år"): years = 5
-    if col3.button("10 år"): years = 10
+# Kontrolpanel placeret over grafen
+col_a, col_b = st.columns([2, 1])
 
-# Beregn startdato baseret på knapperne
+with col_a:
+    tickers_input = st.text_input("Indtast tickers (adskilt af komma)", "MSFT, MSTR")
+
+with col_b:
+    st.write("Vælg tidsperiode:")
+    t_col1, t_col2, t_col3, t_col4 = st.columns(4)
+    years = 0
+    if t_col1.button("1 år"): years = 1
+    if t_col2.button("5 år"): years = 5
+    if t_col3.button("10 år"): years = 10
+    if t_col4.button("Alt"): years = 20 # Går langt tilbage
+
+# Beregn startdato
 if years > 0:
     start_date = (datetime.now() - timedelta(days=years*365)).strftime('%Y-%m-%d')
 else:
-    start_date = "2015-01-01" # Standard hvis ingen knap er trykket
+    start_date = "2015-01-01"
 
 ticker_list = [t.strip().upper() for t in tickers_input.split(",")]
 
-# Hent data
-@st.cache_data # Gemmer data så den ikke skal hentes hver gang
+@st.cache_data
 def get_data(tickers, start):
-    df = yf.download(tickers, start=start)['Close']
-    return (df / df.iloc[0]) * 100
+    try:
+        df = yf.download(tickers, start=start)['Close']
+        if df.empty: return None
+        # Normalisering til indeks 100
+        return (df / df.iloc[0]) * 100
+    except:
+        return None
 
-try:
-    data = get_data(ticker_list, start_date)
+data = get_data(ticker_list, start_date)
 
-    # Byg animationen direkte i Plotly (kører i browseren = intet lag)
+if data is not None:
+    # Selve graf-opbygningen
     fig = go.Figure(
         data=[go.Scatter(x=[data.index[0]], y=[data[c].iloc[0]], name=c, mode="lines") for c in data.columns],
         layout=go.Layout(
             xaxis=dict(range=[data.index.min(), data.index.max()], title="Dato"),
-            yaxis=dict(range=[0, data.max().max() + 50], title="Vækst (Start = 100)"),
+            yaxis=dict(title="Vækst (Start = 100)"),
+            height=600, # Gør grafen dejlig høj
             updatemenus=[{
                 "type": "buttons",
+                "showactive": False,
+                "x": 0.01, "y": 1.15, "xanchor": "left", "yanchor": "top",
                 "buttons": [{
-                    "label": "Afspil Udvikling 🚀",
+                    "label": "▶ Afspil Udvikling",
                     "method": "animate",
-                    "args": [None, {"frame": {"duration": 20, "redraw": True}, "fromcurrent": True}]
+                    "args": [None, {"frame": {"duration": 15, "redraw": True}, "fromcurrent": True}]
+                },
+                {
+                    "label": "⏸ Pause",
+                    "method": "animate",
+                    "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate", "transition": {"duration": 0}}]
                 }]
             }]
         ),
+        # Vi tager hver 10. række for at holde det lynhurtigt
         frames=[go.Frame(data=[go.Scatter(x=data.index[:i], y=data[c].iloc[:i]) for c in data.columns]) 
-                for i in range(1, len(data), 10)] # Vi tager hver 10. dag for flydende bevægelse
+                for i in range(1, len(data), 10)]
     )
 
     fig.update_layout(template="plotly_dark", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
-
-except Exception as e:
-    st.error(f"Indtast tickers og vælg en periode for at starte.")
-
-st.info("Tryk på 'Afspil Udvikling' i grafen for at se animationen uden lagg.")
+    
+    st.caption(f"Viser data fra {start_date} til i dag. Alle kurser er normaliseret til 100 på startdatoen for nem sammenligning.")
+else:
+    st.warning("Indtast venligst gyldige tickers (f.eks. AAPL, TSLA) for at generere grafen.")
