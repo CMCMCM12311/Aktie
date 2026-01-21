@@ -3,6 +3,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 
 # Konfiguration
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
@@ -10,26 +11,12 @@ st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_s
 # CSS HACK: Fjerner "Greyed out" effekt og styler spinneren
 st.markdown("""
     <style>
-        /* Fjerner det grå overlay når appen kører */
-        .stApp[data-mediatype="vertical-layout"] > div:first-child {
-            opacity: 1 !important;
-        }
-        
-        /* Gør siden lys og clean */
+        .stApp[data-mediatype="vertical-layout"] > div:first-child { opacity: 1 !important; }
         .stApp { background-color: #fbfbfd; }
         .block-container {padding-top: 1rem; padding-bottom: 1rem; max-width: 1100px;}
         h1 { font-family: -apple-system, sans-serif; color: #1d1d1f; font-weight: 600; text-align: center; margin-bottom: 0.5rem;}
-        
-        /* Spinner styling - gør den hurtig og blå (Apple Blue) */
-        div[data-testid="stStatusWidget"] {
-            background-color: transparent !important;
-            color: #0071e3 !important;
-        }
-        
-        .stButton>button {
-            border-radius: 10px; background-color: #f5f5f7;
-            color: #1d1d1f; border: 1px solid #d2d2d7; font-weight: 500;
-        }
+        div[data-testid="stStatusWidget"] { background-color: transparent !important; color: #0071e3 !important; }
+        .stButton>button { border-radius: 10px; background-color: #f5f5f7; color: #1d1d1f; border: 1px solid #d2d2d7; font-weight: 500; }
         .stButton>button:hover { background-color: #e8e8ed; color: #0071e3; border-color: #0071e3; }
     </style>
     """, unsafe_allow_html=True)
@@ -38,28 +25,34 @@ st.title("Aktie-Animator")
 
 # Session State
 if 'tickers_val' not in st.session_state:
-    st.session_state.tickers_val = "MSFT, MSTR"
+    st.session_state.tickers_val = "MSFT, COIN"
 if 'years_val' not in st.session_state:
     st.session_state.years_val = 10
 
 popular_tickers = ["NVDA", "TSLA", "AAPL", "AMZN", "META", "MSFT", "GOOGL", "NFLX", "AMD", "MSTR", 
                    "HOOD", "COIN", "PLTR", "BABA", "MARA", "RIOT", "INTC", "PYPL", "DIS", "JPM"]
 
-# --- DATA FUNKTION ---
+# --- FORBEDRET DATA FUNKTION (Fastholder fuld historik) ---
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_fast_data(tickers_str, years_val):
     try:
         t_list = list(set([t.strip().upper() for t in tickers_str.replace(',', ' ').split() if t.strip()]))
         if not t_list: return None
         start = "1900-01-01" if years_val == "IPO" else (datetime.now() - timedelta(days=int(years_val)*365)).strftime('%Y-%m-%d')
+        
+        # Hent data - Vi bruger IKKE .dropna() her med det samme
         df = yf.download(t_list, start=start, progress=False, threads=True)['Close']
+        
         if isinstance(df, pd.Series):
             df = df.to_frame()
             df.columns = [t_list[0]]
-        return df.dropna() if not df.empty else None
+        
+        # Vi fjerner kun rækker hvor ALLE aktier mangler data (før den ældste IPO)
+        df = df.dropna(how='all')
+        
+        return df
     except: return None
 
-# Hurtig spinner-visning uden at "låse" UI'et visuelt
 with st.spinner('Synkroniserer markedet...'):
     data = get_fast_data(st.session_state.tickers_val, st.session_state.years_val)
 
@@ -67,11 +60,14 @@ with st.spinner('Synkroniserer markedet...'):
 if data is not None:
     apple_colors = ['#0071e3', '#ff3b30', '#34c759', '#af52de', '#ff9500']
     step = max(1, len(data) // 150)
+    
+    # Dynamisk Y-grænse baseret på alle data (ignorerer NaN)
     y_limit = data.max().max() * 1.1
 
     fig = go.Figure(
         data=[go.Scatter(x=[data.index[0]], y=[data[c].iloc[0]], name=c, 
-                         line=dict(width=2.5, color=apple_colors[i % len(apple_colors)])) 
+                         line=dict(width=2.5, color=apple_colors[i % len(apple_colors)]),
+                         connectgaps=False) # Vigtigt: Tegner ikke linjen før der er data
               for i, c in enumerate(data.columns)],
         layout=go.Layout(
             xaxis=dict(range=[data.index.min(), data.index.max()], showgrid=False, fixedrange=True),
@@ -86,6 +82,7 @@ if data is not None:
                 ]
             }]
         ),
+        # Frames: Hver frame viser data op til tidspunkt i, inklusiv de aktier der endnu ikke er født
         frames=[go.Frame(data=[go.Scatter(x=data.index[:i], y=data[c].iloc[:i]) for c in data.columns]) 
                 for i in range(1, len(data), step)]
     )
