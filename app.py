@@ -7,18 +7,30 @@ import pandas as pd
 # Konfiguration
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
 
+# CSS HACK: Fjerner "Greyed out" effekt og styler spinneren
 st.markdown("""
     <style>
+        /* Fjerner det grå overlay når appen kører */
+        .stApp[data-mediatype="vertical-layout"] > div:first-child {
+            opacity: 1 !important;
+        }
+        
+        /* Gør siden lys og clean */
         .stApp { background-color: #fbfbfd; }
         .block-container {padding-top: 1rem; padding-bottom: 1rem; max-width: 1100px;}
         h1 { font-family: -apple-system, sans-serif; color: #1d1d1f; font-weight: 600; text-align: center; margin-bottom: 0.5rem;}
+        
+        /* Spinner styling - gør den hurtig og blå (Apple Blue) */
+        div[data-testid="stStatusWidget"] {
+            background-color: transparent !important;
+            color: #0071e3 !important;
+        }
+        
         .stButton>button {
             border-radius: 10px; background-color: #f5f5f7;
-            color: #1d1d1f; border: 1px solid #d2d2d7; font-weight: 500; font-size: 0.85rem;
+            color: #1d1d1f; border: 1px solid #d2d2d7; font-weight: 500;
         }
         .stButton>button:hover { background-color: #e8e8ed; color: #0071e3; border-color: #0071e3; }
-        .stTextInput>div>div>input { border-radius: 12px; border: 1px solid #d2d2d7; height: 3rem; font-size: 1rem;}
-        .section-label { font-size: 0.85rem; color: #86868b; margin: 15px 0 5px 0; font-weight: 600; text-transform: uppercase;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,35 +45,27 @@ if 'years_val' not in st.session_state:
 popular_tickers = ["NVDA", "TSLA", "AAPL", "AMZN", "META", "MSFT", "GOOGL", "NFLX", "AMD", "MSTR", 
                    "HOOD", "COIN", "PLTR", "BABA", "MARA", "RIOT", "INTC", "PYPL", "DIS", "JPM"]
 
-# --- OPTIMERET DATA FUNKTION ---
-@st.cache_data(show_spinner=False, ttl=3600, max_entries=20)
+# --- DATA FUNKTION ---
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_fast_data(tickers_str, years_val):
     try:
         t_list = list(set([t.strip().upper() for t in tickers_str.replace(',', ' ').split() if t.strip()]))
         if not t_list: return None
-        
         start = "1900-01-01" if years_val == "IPO" else (datetime.now() - timedelta(days=int(years_val)*365)).strftime('%Y-%m-%d')
-        
-        # Hent kun 'Close' og brug threads for hurtigere download
         df = yf.download(t_list, start=start, progress=False, threads=True)['Close']
-        
         if isinstance(df, pd.Series):
             df = df.to_frame()
             df.columns = [t_list[0]]
-            
         return df.dropna() if not df.empty else None
-    except:
-        return None
+    except: return None
 
-# Spinner lagt ind i en container for at undgå layout-spring
-placeholder = st.empty()
-with st.spinner('Synkroniserer med markedet...'):
+# Hurtig spinner-visning uden at "låse" UI'et visuelt
+with st.spinner('Synkroniserer markedet...'):
     data = get_fast_data(st.session_state.tickers_val, st.session_state.years_val)
 
 # --- GRAF ---
 if data is not None:
-    apple_colors = ['#0071e3', '#ff3b30', '#34c759', '#af52de', '#ff9500', '#5856d6', '#86868b']
-    # Dynamisk step-størrelse for at holde animationen jævn uanset datamængde
+    apple_colors = ['#0071e3', '#ff3b30', '#34c759', '#af52de', '#ff9500']
     step = max(1, len(data) // 150)
     y_limit = data.max().max() * 1.1
 
@@ -89,7 +93,7 @@ if data is not None:
 
 # --- KONTROLPANEL ---
 st.write("---")
-st.markdown("<div class='section-label'>1. Tidshorisont</div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size: 0.85rem; color: #86868b; font-weight: 600;'>1. TIDSHORISONT</div>", unsafe_allow_html=True)
 t_cols = st.columns(5)
 vals, labels = [1, 5, 10, 20, "IPO"], ["1 år", "5 år", "10 år", "20 år", "IPO"]
 for i, col in enumerate(t_cols):
@@ -97,13 +101,13 @@ for i, col in enumerate(t_cols):
         st.session_state.years_val = vals[i]
         st.rerun()
 
-st.markdown("<div class='section-label'>2. Søg eller tilføj tickers</div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size: 0.85rem; color: #86868b; font-weight: 600; margin-top: 15px;'>2. SØG ELLER TILFØJ</div>", unsafe_allow_html=True)
 search_input = st.text_input("Søg", value=st.session_state.tickers_val, label_visibility="collapsed")
 if search_input != st.session_state.tickers_val:
     st.session_state.tickers_val = search_input
     st.rerun()
 
-st.markdown("<div class='section-label'>Hurtig tilføj</div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size: 0.85rem; color: #86868b; font-weight: 600; margin-top: 10px;'>HURTIG TILFØJ</div>", unsafe_allow_html=True)
 row1 = st.columns(10)
 row2 = st.columns(10)
 for i, ticker in enumerate(popular_tickers):
