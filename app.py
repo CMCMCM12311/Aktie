@@ -109,4 +109,8 @@ row2 = st.columns(10)
 for i, ticker in enumerate(popular_tickers):
     col = row1[i] if i < 10 else row2[i-10]
     if col.button(ticker, key=f"p_{ticker}"):
-        curr = [t.strip().upper() for t in st.session_state
+        curr = [t.strip().upper() for t in st.session_state.tickers_val.replace(',', ' ').split() if t.strip()]
+        if ticker not in curr:
+            curr.append(ticker)
+            st.session_state.tickers_val = ", ".join(curr)
+            st.rerun()
