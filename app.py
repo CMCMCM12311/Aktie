@@ -3,17 +3,18 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# Konfiguration for at undgå scroll
+# Konfiguration
 st.set_page_config(page_title="Aktie-Animator", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS til at fjerne marginer og optimere layout
+# CSS til layout
 st.markdown("""
     <style>
         .block-container {padding-top: 1rem; padding-bottom: 0rem;}
         h1 {margin-top: -1rem; margin-bottom: 0.5rem; font-size: 1.8rem !important; text-align: center;}
         hr {margin-top: 0.5rem; margin-bottom: 0.5rem;}
         .stButton>button {width: 100%; border-radius: 5px; height: 3rem; background-color: #262730; color: white; font-weight: bold;}
-        .stButton>button:hover {border-color: #ff4b4b; color: #ff4b4b;}
+        /* Fremhæv afspil-knappen */
+        .main-btn>div>button {background-color: #ff4b4b !important; color: white !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -35,23 +36,19 @@ else:
 @st.cache_data(show_spinner=False)
 def get_data(tickers, start):
     try:
-        # Vi henter data og fjerner rækker med manglende værdier (NaN)
         df = yf.download(tickers, start=start)['Close'].dropna()
         if df.empty: return None
-        # Normalisering til indeks 100
         return (df / df.iloc[0]) * 100
     except: return None
 
 data = get_data(ticker_list, start_date)
 
-# --- GRAF SEKTION (ØVERST) ---
+# --- GRAF SEKTION ---
 if data is not None:
-    # Vi tager ca. 100 datapunkter for en jævn animation uanset tidsperiode
     step = max(1, len(data) // 100)
     
     fig = go.Figure(
-        data=[go.Scatter(x=[data.index[0]], y=[data[c].iloc[0]], name=c, 
-                         mode="lines", line=dict(width=3)) for c in data.columns],
+        data=[go.Scatter(x=[data.index[0]], y=[data[c].iloc[0]], name=c, mode="lines", line=dict(width=3)) for c in data.columns],
         layout=go.Layout(
             xaxis=dict(range=[data.index.min(), data.index.max()], showgrid=False),
             yaxis=dict(title="Vækst (Start = 100)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
@@ -62,10 +59,10 @@ if data is not None:
             updatemenus=[{
                 "type": "buttons",
                 "showactive": False,
-                "visible": True, # Vi gør den synlig for en sikkerheds skyld, men lille
-                "x": 0.01, "y": 1.1,
+                "visible": True,
+                "x": 0.01, "y": 1.12,
                 "buttons": [{
-                    "label": "▶ AFSPIL",
+                    "label": "▶ KLIK HER FOR AT AFSPILLE",
                     "method": "animate",
                     "args": [None, {"frame": {"duration": 20, "redraw": True}, "fromcurrent": True}]
                 }]
@@ -77,38 +74,34 @@ if data is not None:
     
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
-    # FORBEDRET AUTO-PLAY SCRIPT
+    # Auto-play script (forsøger at klikke på knappen automatisk)
     st.components.v1.html(
         """
         <script>
-        function startAnimation() {
-            var buttons = window.parent.document.querySelectorAll('rect.updatemenu-button-rect');
-            if (buttons.length > 0) {
-                buttons[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));
-            } else {
-                // Hvis knappen ikke er fundet endnu, prøv igen om 200ms
-                setTimeout(startAnimation, 200);
-            }
+        function clickPlay() {
+            var btn = window.parent.document.querySelector('rect.updatemenu-button-rect');
+            if (btn) { btn.dispatchEvent(new MouseEvent('click', {bubbles: true})); }
+            else { setTimeout(clickPlay, 300); }
         }
-        // Start forsøget efter 500ms
-        setTimeout(startAnimation, 500);
+        setTimeout(clickPlay, 500);
         </script>
-        """,
-        height=0
+        """, height=0
     )
 
 # --- KONTROLPANEL (NEDENUNDER) ---
 st.write("---")
-col_input, col_compare = st.columns([3, 1])
+col_input, col_play = st.columns([3, 1])
 
 with col_input:
-    # On_change eller enter-tryk opdaterer session state
     new_t = st.text_input("Tickers", value=st.session_state.tickers_val, label_visibility="collapsed")
 
-with col_compare:
-    if st.button("✨ Sammenlign (Compare)"):
+with col_play:
+    # Den nye knap der erstatter "Compare"
+    st.markdown('<div class="main-btn">', unsafe_allow_html=True)
+    if st.button("Opdater & Afspil 🚀"):
         st.session_state.tickers_val = new_t
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Tids-knapper
 t_cols = st.columns(5)
@@ -119,5 +112,3 @@ for i, col in enumerate(t_cols):
     if col.button(labels[i]):
         st.session_state.years_val = vals[i]
         st.rerun()
-
-st.caption(f"Viser: {st.session_state.tickers_val} | Periode: {st.session_state.years_val}")
