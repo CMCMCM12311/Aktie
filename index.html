@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aktie-Animator — Se aktiernes historie udspille sig</title>
+<meta name="description" content="Aktie-Animator visualiserer og animerer historiske aktiekurser. Sammenlign aktier over 1, 5, 10, 20 år eller helt tilbage til IPO.">
+<style>
+  :root {
+    --blue: #0071e3;
+    --red: #ff3b30;
+    --green: #34c759;
+    --purple: #af52de;
+    --orange: #ff9500;
+    --bg: #fbfbfd;
+    --text: #1d1d1f;
+    --muted: #86868b;
+    --border: #d2d2d7;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Nav */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: saturate(180%) blur(20px);
+    background: rgba(251, 251, 253, 0.8);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo { font-weight: 600; font-size: 1rem; letter-spacing: -0.01em; }
+  .nav-links { display: flex; gap: 28px; }
+  .nav-links a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.9rem;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+  }
+  .nav-links a:hover { opacity: 1; color: var(--blue); }
+
+  /* Hero */
+  .hero {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 24px 60px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: clamp(2.4rem, 6vw, 4.2rem);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    margin: 0 0 16px;
+    line-height: 1.05;
+  }
+  .hero .gradient {
+    background: linear-gradient(90deg, var(--blue), var(--purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero p.lead {
+    font-size: clamp(1.1rem, 2vw, 1.4rem);
+    color: var(--muted);
+    max-width: 640px;
+    margin: 0 auto 36px;
+    font-weight: 400;
+  }
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 980px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #0077ed; transform: translateY(-1px); }
+  .btn-secondary {
+    background: #f5f5f7;
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .btn-secondary:hover { background: #e8e8ed; color: var(--blue); border-color: var(--blue); }
+
+  /* Demo chart */
+  .chart-wrap {
+    max-width: 1000px;
+    margin: 20px auto 0;
+    padding: 0 24px;
+  }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+  }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .chart-title { font-weight: 600; font-size: 1.05rem; }
+  .legend { display: flex; gap: 16px; font-size: 0.85rem; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  #demoChart { width: 100%; height: 360px; display: block; }
+  .chart-controls {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .chart-controls button {
+    padding: 8px 16px;
+    border-radius: 10px;
+    background: #f5f5f7;
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chart-controls button:hover { background: #e8e8ed; color: var(--blue); border-color: var(--blue); }
+  .chart-controls button.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+  /* Sections */
+  section { padding: 80px 24px; }
+  .section-inner { max-width: 1100px; margin: 0 auto; }
+  .section-eyebrow {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--blue);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+  }
+  .section-lead {
+    color: var(--muted);
+    font-size: 1.1rem;
+    max-width: 640px;
+    margin-bottom: 48px;
+  }
+
+  /* Features */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .feature {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .feature:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.08);
+  }
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    font-size: 1.4rem;
+  }
+  .feature h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .feature p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  /* Code section */
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  @media (max-width: 768px) { .install-grid { grid-template-columns: 1fr; } }
+  .code-block {
+    background: #1d1d1f;
+    color: #f5f5f7;
+    border-radius: 14px;
+    padding: 24px;
+    font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  .code-block .comment { color: #86868b; }
+  .code-block .cmd { color: #34c759; }
+
+  /* Step list */
+  .steps { list-style: none; padding: 0; margin: 0; }
+  .steps li {
+    display: flex;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #ececec;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: var(--blue);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .step-text strong { display: block; margin-bottom: 2px; }
+  .step-text span { color: var(--muted); font-size: 0.92rem; }
+
+  /* Tickers strip */
+  .tickers-strip {
+    background: white;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 30px 24px;
+    overflow: hidden;
+  }
+  .tickers-inner {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .ticker-chip {
+    padding: 8px 14px;
+    background: #f5f5f7;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  /* Footer */
+  footer {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="logo">📈 Aktie-Animator</div>
+    <div class="nav-links">
+      <a href="#features">Funktioner</a>
+      <a href="#demo">Demo</a>
+      <a href="#install">Kom i gang</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <h1>Se aktiernes historie<br><span class="gradient">udspille sig</span></h1>
+  <p class="lead">
+    Aktie-Animator visualiserer og animerer historiske aktiekurser i realtid. Sammenlign virksomheder fra IPO til i dag — og forstå markedet visuelt.
+  </p>
+  <div class="cta-row">
+    <a href="#install" class="btn btn-primary">Kom i gang</a>
+    <a href="#demo" class="btn btn-secondary">Se demo ▶</a>
+  </div>
+</header>
+
+<div class="chart-wrap" id="demo">
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">MSFT vs. COIN — sidste 10 år</div>
+      <div class="legend">
+        <div class="legend-item"><span class="dot" style="background:#0071e3"></span> MSFT</div>
+        <div class="legend-item"><span class="dot" style="background:#ff3b30"></span> COIN</div>
+      </div>
+    </div>
+    <canvas id="demoChart"></canvas>
+    <div class="chart-controls">
+      <button id="playBtn" class="active">▶ Spil</button>
+      <button id="pauseBtn">Pause</button>
+      <button id="resetBtn">Nulstil</button>
+    </div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="section-inner">
+    <div class="section-eyebrow">Funktioner</div>
+    <h2>Alt du behøver for at forstå markedet</h2>
+    <p class="section-lead">Bygget med Streamlit, yfinance og Plotly. Hurtig, ren og fokuseret på det vigtige.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon" style="background:#e3f0ff;color:#0071e3">⚡</div>
+        <h3>Live markedsdata</h3>
+        <p>Henter friske kurser fra Yahoo Finance via yfinance — med smart caching for lynhurtige opdateringer.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background:#ffe9e7;color:#ff3b30">🎬</div>
+        <h3>Animerede grafer</h3>
+        <p>Tryk på "Spil" og se kursudviklingen folde sig ud over år — eller helt tilbage til IPO.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background:#e6f9ed;color:#34c759">📊</div>
+        <h3>Sammenlign frit</h3>
+        <p>Tilføj flere tickers og sammenlign udviklingen side om side med farvekodede linjer.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background:#f3e6fa;color:#af52de">⏱</div>
+        <h3>Tidshorisont</h3>
+        <p>Skift mellem 1, 5, 10, 20 år eller "siden IPO" med ét klik. Grafen tilpasser sig automatisk.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background:#fff4e0;color:#ff9500">🔍</div>
+        <h3>Hurtig søgning</h3>
+        <p>20 populære aktier som hurtigknapper — eller skriv din egen ticker.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background:#eef2ff;color:#5856d6">🎨</div>
+        <h3>Rent design</h3>
+        <p>Minimalistisk, Apple-inspireret UI der lader data tale for sig selv.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="tickers-strip">
+  <div class="tickers-inner">
+    <span class="ticker-chip">NVDA</span>
+    <span class="ticker-chip">TSLA</span>
+    <span class="ticker-chip">AAPL</span>
+    <span class="ticker-chip">AMZN</span>
+    <span class="ticker-chip">META</span>
+    <span class="ticker-chip">MSFT</span>
+    <span class="ticker-chip">GOOGL</span>
+    <span class="ticker-chip">NFLX</span>
+    <span class="ticker-chip">AMD</span>
+    <span class="ticker-chip">MSTR</span>
+    <span class="ticker-chip">HOOD</span>
+    <span class="ticker-chip">COIN</span>
+    <span class="ticker-chip">PLTR</span>
+    <span class="ticker-chip">BABA</span>
+    <span class="ticker-chip">MARA</span>
+    <span class="ticker-chip">RIOT</span>
+    <span class="ticker-chip">INTC</span>
+    <span class="ticker-chip">PYPL</span>
+    <span class="ticker-chip">DIS</span>
+    <span class="ticker-chip">JPM</span>
+  </div>
+</div>
+
+<section id="install">
+  <div class="section-inner">
+    <div class="section-eyebrow">Kom i gang</div>
+    <h2>Kør Aktie-Animator lokalt på 30 sekunder</h2>
+
+    <div class="install-grid">
+      <div>
+        <ol class="steps">
+          <li>
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <strong>Klon repoet</strong>
+              <span>Hent koden fra GitHub</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <strong>Installer afhængigheder</strong>
+              <span>Streamlit, yfinance, plotly og pandas</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <strong>Start appen</strong>
+              <span>Åbner automatisk i din browser</span>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="code-block">
+<span class="comment"># 1. Klon</span>
+<span class="cmd">git clone</span> https://github.com/cmcmcm12311/aktie.git
+<span class="cmd">cd</span> aktie
+
+<span class="comment"># 2. Installer</span>
+<span class="cmd">pip install</span> -r requirements.txt
+
+<span class="comment"># 3. Kør</span>
+<span class="cmd">streamlit run</span> app.py
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Bygget med Streamlit, yfinance og Plotly · <a href="https://github.com/cmcmcm12311/aktie" target="_blank" rel="noopener">GitHub</a></p>
+  <p style="margin-top:8px;font-size:0.75rem;">Data: Yahoo Finance. Til informationsbrug — ikke investeringsrådgivning.</p>
+</footer>
+
+<script>
+(function(){
+  const canvas = document.getElementById('demoChart');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', () => { resize(); draw(currentFrame); });
+
+  // Generate plausible-looking data: MSFT steady growth, COIN IPO 2021 + volatility
+  const N = 240; // ~10 years monthly-ish
+  const msftData = [];
+  const coinData = [];
+  let msft = 45;
+  for (let i = 0; i < N; i++) {
+    msft *= (1 + (Math.sin(i / 14) * 0.012) + 0.012 + (Math.random() - 0.5) * 0.02);
+    msftData.push(msft);
+    // COIN doesn't exist until ~70% of the way through (IPO April 2021)
+    if (i < N * 0.62) {
+      coinData.push(null);
+    } else if (i === Math.floor(N * 0.62)) {
+      coinData.push(340);
+    } else {
+      const prev = coinData[coinData.length - 1];
+      const t = (i - N * 0.62) / (N - N * 0.62);
+      const trend = Math.sin(t * Math.PI * 1.6) * 0.06;
+      coinData.push(Math.max(40, prev * (1 + trend + (Math.random() - 0.5) * 0.08)));
+    }
+  }
+
+  let currentFrame = N;
+  let animTimer = null;
+
+  function draw(uptoFrame) {
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().height;
+    ctx.clearRect(0, 0, w, h);
+
+    const padL = 50, padR = 20, padT = 20, padB = 30;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // Find y max from all data (so scale stays stable)
+    let yMax = 0;
+    msftData.forEach(v => { if (v > yMax) yMax = v; });
+    coinData.forEach(v => { if (v !== null && v > yMax) yMax = v; });
+    yMax *= 1.1;
+
+    // Grid + Y labels
+    ctx.strokeStyle = '#f0f0f2';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#86868b';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(w - padR, y);
+      ctx.stroke();
+      const val = Math.round(yMax - (yMax / 4) * i);
+      ctx.fillText('$' + val, padL - 8, y + 4);
+    }
+
+    // X labels (years)
+    ctx.textAlign = 'center';
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - 10;
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + (plotW / 5) * i;
+      const yr = startYear + Math.round((i / 5) * 10);
+      ctx.fillText(yr, x, h - 10);
+    }
+
+    function plot(arr, color, frameLimit) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let started = false;
+      const limit = Math.min(frameLimit, arr.length);
+      for (let i = 0; i < limit; i++) {
+        const v = arr[i];
+        if (v === null || v === undefined) { started = false; continue; }
+        const x = padL + (plotW * i) / (N - 1);
+        const y = padT + plotH - (v / yMax) * plotH;
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else { ctx.lineTo(x, y); }
+      }
+      ctx.stroke();
+    }
+
+    plot(msftData, '#0071e3', uptoFrame);
+    plot(coinData, '#ff3b30', uptoFrame);
+  }
+
+  function animate() {
+    if (animTimer) return;
+    currentFrame = 1;
+    setActive('playBtn');
+    animTimer = setInterval(() => {
+      currentFrame += 3;
+      if (currentFrame >= N) {
+        currentFrame = N;
+        draw(currentFrame);
+        clearInterval(animTimer);
+        animTimer = null;
+        return;
+      }
+      draw(currentFrame);
+    }, 35);
+  }
+  function pause() {
+    if (animTimer) { clearInterval(animTimer); animTimer = null; }
+    setActive('pauseBtn');
+  }
+  function reset() {
+    pause();
+    currentFrame = 0;
+    draw(currentFrame);
+    setActive('resetBtn');
+  }
+  function setActive(id) {
+    ['playBtn','pauseBtn','resetBtn'].forEach(b => {
+      document.getElementById(b).classList.toggle('active', b === id);
+    });
+  }
+
+  document.getElementById('playBtn').addEventListener('click', animate);
+  document.getElementById('pauseBtn').addEventListener('click', pause);
+  document.getElementById('resetBtn').addEventListener('click', reset);
+
+  resize();
+  draw(currentFrame);
+
+  // Auto-play once shortly after load
+  setTimeout(animate, 600);
+})();
+</script>
+
+</body>
+</html>
